@@ -365,5 +365,34 @@ namespace TopDownProteomics.Tests.ProForma
 
             Assert.AreEqual("SE(?Q)UENCE", result);
         }
+
+        [Test]
+        public void WriteMultipleModificationsOnSameRange()
+        {
+            // A range bearing more than one modification: "(SEQ)[mod1][mod2]" (ProForma 2.0 section 4.5).
+            // Each modification is a separate tag spanning the same range; they must be emitted as
+            // consecutive descriptors after the range, not treated as nested ranges.
+            var term = new ProFormaTerm("SEQUENCE", tags: new[]
+            {
+                new ProFormaTag(2, 5, new[] { new ProFormaDescriptor(ProFormaKey.Mass, "+14.05") }),
+                new ProFormaTag(2, 5, new[] { new ProFormaDescriptor(ProFormaKey.Name, "Oxidation") })
+            });
+            var result = _writer.WriteString(term);
+
+            Assert.AreEqual("SE(QUEN)[+14.05][Oxidation]CE", result);
+        }
+
+        [Test]
+        public void RoundTripMultipleModificationsOnRange()
+        {
+            // Regression for the "Can't nest ranges within each other" writer bug on a range that
+            // carries several modifications (ProForma 2.0 section 4.5).
+            var parser = new ProFormaParser();
+            string proForma = "PRT(ESFRMS)[Oxidation][Oxidation][half cystine][half cystine]ISK";
+
+            string written = _writer.WriteString(parser.ParseString(proForma));
+
+            Assert.AreEqual(proForma, written);
+        }
     }
 }
