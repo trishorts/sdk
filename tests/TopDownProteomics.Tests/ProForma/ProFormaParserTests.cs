@@ -1144,5 +1144,25 @@ namespace TopDownProteomics.Tests
             Assert.AreEqual("UNIMOD:15", desc1.Value);
         }
         #endregion
+
+        [Test]
+        public void RejectAccessionUnderShortSourcePrefix()
+        {
+            // ProForma 2.0: an ontology accession must use the full prefix (UNIMOD:/MOD:/RESID:).
+            // Writing the accession under the short name prefix (U:/M:/R:) is invalid.
+            Assert.Throws<ProFormaParseException>(() => _parser.ParseString("EM[U:35]EVEES[U:56]PEK"));
+            Assert.Throws<ProFormaParseException>(() => _parser.ParseString("EM[M:00719]EVEES[M:00046]PEK"));
+            Assert.Throws<ProFormaParseException>(() => _parser.ParseString("EM[R:AA0581]EVEES[R:AA0037]PEK"));
+        }
+
+        [Test]
+        public void AllowNamesAndMassesUnderShortSourcePrefix()
+        {
+            // Real names and source-tagged masses under the short prefix remain valid.
+            Assert.DoesNotThrow(() => _parser.ParseString("EM[U:Oxidation]EVEES[U:Phospho]PEK"));
+            Assert.DoesNotThrow(() => _parser.ParseString("EM[M:L-methionine sulfoxide]EVEES[M:O-phospho-L-serine]PEK"));
+            Assert.DoesNotThrow(() => _parser.ParseString("EM[U:+15.9949]EVEES[U:+79.9663]PEK"));
+            Assert.DoesNotThrow(() => _parser.ParseString("EM[R: L-methionine sulfone]EVEESPEK"));
+        }
     }
 }

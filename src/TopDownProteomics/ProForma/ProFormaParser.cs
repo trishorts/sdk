@@ -440,15 +440,76 @@ namespace TopDownProteomics.ProForma
                 "gno" => Tuple.Create(ProFormaKey.Identifier, ProFormaEvidenceType.Gno, text, groupName, weight),
 
                 // Handle names and masses
-                "u" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.Unimod, text.Substring(colon + 1), groupName, weight),
-                "m" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.PsiMod, text.Substring(colon + 1), groupName, weight),
-                "r" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.Resid, text.Substring(colon + 1), groupName, weight),
-                "x" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.XlMod, text.Substring(colon + 1), groupName, weight),
-                "g" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.Gno, text.Substring(colon + 1), groupName, weight),
-                "b" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.Brno, text.Substring(colon + 1), groupName, weight),
-                "obs" => Tuple.Create(getKey(isMass), ProFormaEvidenceType.Observed, text.Substring(colon + 1), groupName, weight),
+                "u" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.Unimod, text.Substring(colon + 1), groupName, weight),
+                "m" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.PsiMod, text.Substring(colon + 1), groupName, weight),
+                "r" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.Resid, text.Substring(colon + 1), groupName, weight),
+                "x" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.XlMod, text.Substring(colon + 1), groupName, weight),
+                "g" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.Gno, text.Substring(colon + 1), groupName, weight),
+                "b" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.Brno, text.Substring(colon + 1), groupName, weight),
+                "obs" => this.CreateNameOrMass(isMass, ProFormaEvidenceType.Observed, text.Substring(colon + 1), groupName, weight),
 
                 _ => Tuple.Create(ProFormaKey.Name, ProFormaEvidenceType.None, text, groupName, weight)
+            };
+        }
+
+        /// <summary>
+        /// Creates a name or mass descriptor for a short ontology source prefix (U:, M:, R:, ...).
+        /// A short prefix denotes a modification NAME; when the value is written in the accession
+        /// format of its ontology (e.g. "U:35" or "R:AA0581") the full accession prefix
+        /// (UNIMOD:, MOD:, RESID:) was intended. ProForma 2.0 lists such forms as invalid, so they
+        /// are rejected here rather than silently treated as a (non-existent) name.
+        /// </summary>
+        private Tuple<ProFormaKey, ProFormaEvidenceType, string, string?, double> CreateNameOrMass(
+            bool isMass, ProFormaEvidenceType evidenceType, string value, string? groupName, double weight)
+        {
+            ProFormaKey key = isMass ? ProFormaKey.Mass : ProFormaKey.Name;
+
+            if (key == ProFormaKey.Name)
+            {
+                string? accessionPrefix = GetMisusedAccessionPrefix(evidenceType, value);
+
+                if (accessionPrefix != null)
+                    throw new ProFormaParseException(
+                        $"'{value}' is in {accessionPrefix} accession format; use the full accession " +
+                        $"prefix (e.g. [{accessionPrefix}:{value}]) instead of the short source prefix.");
+            }
+
+            return Tuple.Create(key, evidenceType, value, groupName, weight);
+        }
+
+        /// <summary>
+        /// Returns the full accession prefix a value should have used when it is written in the
+        /// accession format of its ontology under a short source prefix, or <c>null</c> otherwise.
+        /// </summary>
+        private static string? GetMisusedAccessionPrefix(ProFormaEvidenceType evidenceType, string value)
+        {
+            static bool IsAllDigits(string s)
+            {
+                if (s.Length == 0)
+                    return false;
+                foreach (char c in s)
+                    if (!char.IsDigit(c))
+                        return false;
+                return true;
+            }
+
+            static bool IsResidAccession(string s)
+            {
+                // RESID accessions are "AA" followed by digits, e.g. AA0581.
+                if (s.Length < 3 || s[0] != 'A' || s[1] != 'A')
+                    return false;
+                for (int i = 2; i < s.Length; i++)
+                    if (!char.IsDigit(s[i]))
+                        return false;
+                return true;
+            }
+
+            return evidenceType switch
+            {
+                ProFormaEvidenceType.Unimod when IsAllDigits(value) => "UNIMOD",
+                ProFormaEvidenceType.PsiMod when IsAllDigits(value) => "MOD",
+                ProFormaEvidenceType.Resid when IsResidAccession(value) => "RESID",
+                _ => null
             };
         }
     }
