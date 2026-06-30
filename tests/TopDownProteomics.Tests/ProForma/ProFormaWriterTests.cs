@@ -394,5 +394,35 @@ namespace TopDownProteomics.Tests.ProForma
 
             Assert.AreEqual(proForma, written);
         }
+
+        [Test]
+        public void WriteSingleResidueModificationInsideRange()
+        {
+            // A point modification localized to one residue that sits inside a range:
+            // the inner residue tag is written within the range parentheses, the range
+            // descriptor after the closing ')'.
+            var term = new ProFormaTerm("SEQUENCE", tags: new[]
+            {
+                new ProFormaTag(1, 5, new[] { new ProFormaDescriptor(ProFormaKey.Mass, "+14.05") }),
+                new ProFormaTag(3, new[] { new ProFormaDescriptor(ProFormaKey.Name, "Oxidation") })
+            });
+            var result = _writer.WriteString(term);
+
+            Assert.AreEqual("S(EQU[Oxidation]EN)[+14.05]CE", result);
+        }
+
+        [Test]
+        public void WriteNestedRangesThrows()
+        {
+            // A genuine range nested inside another range (distinct start/end pairs) is invalid
+            // ProForma and must still be rejected.
+            var term = new ProFormaTerm("SEQUENCE", tags: new[]
+            {
+                new ProFormaTag(1, 5, new[] { new ProFormaDescriptor(ProFormaKey.Mass, "+14.05") }),
+                new ProFormaTag(2, 4, new[] { new ProFormaDescriptor(ProFormaKey.Name, "Oxidation") })
+            });
+
+            Assert.Throws<ProFormaParseException>(() => _writer.WriteString(term));
+        }
     }
 }
